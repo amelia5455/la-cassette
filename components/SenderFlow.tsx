@@ -17,6 +17,7 @@ const ICON_CHOICES: IconKey[] = ["starfish2", "scallop", "conch", "wave", "oyste
 interface Status {
   spotifyEnabled: boolean;
   spotifyConnected: boolean;
+  spotifyName: string | null;
   appleEnabled: boolean;
 }
 
@@ -39,8 +40,12 @@ export function SenderFlow({
   const [status, setStatus] = useState<Status>({
     spotifyEnabled: false,
     spotifyConnected: false,
+    spotifyName: null,
     appleEnabled: false,
   });
+  // Apple has no server session — track its authorization client-side.
+  const [appleConnected, setAppleConnected] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
 
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [loadingPlaylists, setLoadingPlaylists] = useState(false);
@@ -67,17 +72,22 @@ export function SenderFlow({
   const T = PLATFORMS[target];
 
   // ── status + OAuth resume ──────────────────────────────────
+  const refreshStatus = useCallback(async () => {
+    try {
+      const s = await (await fetch("/api/status")).json();
+      setStatus({
+        spotifyEnabled: s.spotify.enabled,
+        spotifyConnected: s.spotify.connected,
+        spotifyName: s.spotify.name ?? null,
+        appleEnabled: s.apple.enabled,
+      });
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   useEffect(() => {
-    fetch("/api/status")
-      .then((r) => r.json())
-      .then((s) =>
-        setStatus({
-          spotifyEnabled: s.spotify.enabled,
-          spotifyConnected: s.spotify.connected,
-          appleEnabled: s.apple.enabled,
-        }),
-      )
-      .catch(() => {});
+    void refreshStatus();
 
     const params = new URLSearchParams(window.location.search);
     if (params.get("connected") === "sender") {
@@ -135,9 +145,10 @@ export function SenderFlow({
       setScreen("pick");
       void loadPlaylists("spotify");
     } else {
-      if (status.appleEnabled) {
+      if (status.appleEnabled && !appleConnected) {
         try {
           await authorizeApple();
+          setAppleConnected(true);
         } catch {
           /* fall through to whatever playlists we can load */
         }
@@ -146,6 +157,29 @@ export function SenderFlow({
       void loadPlaylists("apple");
     }
   }
+
+  async function disconnect() {
+    setDisconnecting(true);
+    try {
+      if (source === "spotify") {
+        await fetch("/api/spotify/logout", { method: "POST" });
+        await refreshStatus();
+      } else {
+        setAppleConnected(false);
+      }
+    } finally {
+      setDisconnecting(false);
+    }
+  }
+
+  // Connection state for the current source.
+  const sourceEnabled = source === "spotify" ? status.spotifyEnabled : status.appleEnabled;
+  const sourceConnected = source === "spotify" ? status.spotifyConnected : appleConnected;
+  const connectLabel = !sourceEnabled
+    ? `Connect ${S.name}`
+    : sourceConnected
+      ? "Choose a playlist"
+      : `Connect ${S.name}`;
 
   // ── source tracks ──────────────────────────────────────────
   async function getSourceTracks(pl: Playlist): Promise<SourceTrack[]> {
@@ -305,11 +339,37 @@ export function SenderFlow({
         </div>
         <div className="stack">
           <button className="btn" onClick={connect}>
-            Connect {S.name}
+            {connectLabel}
           </button>
         </div>
         <div className="brandrow">
-          <span className={source === "apple" ? "dot dotA" : "dot"} /> reading from {S.low} · winoman
+          <span className={source === "apple" ? "dot dotA" : "dot"} />{" "}
+          {!sourceEnabled ? (
+            <>demo · sample {S.low} playlists</>
+          ) : sourceConnected ? (
+            <>
+              connected
+              {source === "spotify" && status.spotifyName ? <> as {status.spotifyName}</> : null}
+              {" · "}
+              <button
+                onClick={disconnect}
+                disabled={disconnecting}
+                style={{
+                  font: "inherit",
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  color: "var(--coral)",
+                  cursor: "pointer",
+                  textDecoration: "underline",
+                }}
+              >
+                {disconnecting ? "disconnecting…" : "disconnect"}
+              </button>
+            </>
+          ) : (
+            <>reading from {S.low}</>
+          )}
         </div>
       </section>
 

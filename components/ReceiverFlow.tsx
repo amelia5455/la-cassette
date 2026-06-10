@@ -23,9 +23,11 @@ export function ReceiverFlow({ tape, spotifyEnabled, spotifyConnected, appleEnab
   const [peeled, setPeeled] = useState(resumeAdd);
   const [filing, setFiling] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [createdUrl, setCreatedUrl] = useState<string | null>(null);
   const started = useRef(false);
 
   const target = PLATFORMS[tape.target];
+  const targetEnabled = tape.target === "spotify" ? spotifyEnabled : appleEnabled;
   const added = tape.tracks.filter((t) => t.matched).length;
   const missed = tape.totalCount - added;
 
@@ -52,7 +54,9 @@ export function ReceiverFlow({ tape, spotifyEnabled, spotifyConnected, appleEnab
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ tapeId: tape.id }),
         });
-        if (!res.ok) throw new Error((await res.json()).error || "create_failed");
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "create_failed");
+        if (data.url) setCreatedUrl(data.url);
       } else {
         let musicUserToken: string | undefined;
         if (appleEnabled) {
@@ -64,6 +68,8 @@ export function ReceiverFlow({ tape, spotifyEnabled, spotifyConnected, appleEnab
           body: JSON.stringify({ tapeId: tape.id, musicUserToken }),
         });
         if (!res.ok) throw new Error((await res.json()).error || "create_failed");
+        // Apple library playlists open in the native Music app library.
+        if (appleEnabled) setCreatedUrl("https://music.apple.com/library/recently-added");
       }
       setScreen("done");
     } catch (err) {
@@ -131,12 +137,17 @@ export function ReceiverFlow({ tape, spotifyEnabled, spotifyConnected, appleEnab
         {tape.note ? <div className="pcard">{tape.note}</div> : null}
         <div className="stack">
           <button className="btn coral" onClick={fileTape} disabled={filing}>
-            {filing ? "Filing…" : `Connect ${target.name}`}
+            {filing
+              ? "Filing…"
+              : tape.target === "spotify" && targetEnabled && spotifyConnected
+                ? `Add to ${target.name}`
+                : `Connect ${target.name}`}
           </button>
         </div>
         {errorMsg && <p className="tiny" style={{ color: "var(--coral)" }}>{errorMsg}</p>}
         <div className="brandrow">
-          <span className={tape.target === "apple" ? "dot dotA" : "dot"} /> adding to {target.low}
+          <span className={tape.target === "apple" ? "dot dotA" : "dot"} />{" "}
+          {targetEnabled ? <>adding to {target.low}</> : <>demo · nothing leaves this screen</>}
         </div>
       </section>
 
@@ -172,6 +183,19 @@ export function ReceiverFlow({ tape, spotifyEnabled, spotifyConnected, appleEnab
             <>{added} tracks added to the playlist.</>
           )}
         </div>
+        {createdUrl && (
+          <div className="stack">
+            <a
+              className={`btn${tape.target === "apple" ? " coral" : ""}`}
+              href={createdUrl}
+              target="_blank"
+              rel="noreferrer"
+              style={{ textAlign: "center", textDecoration: "none", display: "block" }}
+            >
+              Open in {target.name} →
+            </a>
+          </div>
+        )}
       </section>
     </>
   );

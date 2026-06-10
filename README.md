@@ -29,6 +29,11 @@ npm run dev          # http://localhost:3000
 - `/` — sender flow: connect → pick playlist → match by ISRC → label the tape → share link
 - `/t/<id>` — receiver flow: sealed cassette → peel → connect → playlist created in library
 
+The **connect** step reflects real state: in demo mode it says "demo · sample
+playlists"; once credentials are configured it sends the user through real OAuth
+and then shows "connected as *name* · disconnect". After a receiver files a tape,
+an **Open in Spotify / Apple Music** link appears when a real playlist was created.
+
 ---
 
 ## Architecture
@@ -42,6 +47,7 @@ app/
   api/
     spotify/login              OAuth start (sender read / receiver modify scopes)
     spotify/callback           OAuth code exchange → signed session cookie
+    spotify/logout             Disconnect the connected Spotify account
     spotify/playlists          List the connected user's playlists
     spotify/tracks             Read a playlist's tracks (with ISRCs)
     spotify/create             Receiver: create a Spotify playlist from matched ids
