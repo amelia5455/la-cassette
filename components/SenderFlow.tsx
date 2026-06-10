@@ -5,11 +5,11 @@ import type { MatchedTrack, Playlist, Service, SourceTrack, Tape, IconKey } from
 import { PLATFORMS } from "@/lib/types";
 import { DEMO_PLAYLISTS, demoTracksFor } from "@/lib/demo";
 import { ICON_KEYS } from "@/lib/icons";
-import { Cassette, CassettePreview } from "./Cassette";
+import { Cassette } from "./Cassette";
 import { ShellIcon } from "./ShellIcon";
 import { authorizeApple, appleLibraryPlaylists, applePlaylistTracks } from "@/lib/musickit";
 
-type Screen = "connect" | "pick" | "convert" | "compose" | "sent" | "text";
+type Screen = "connect" | "pick" | "convert" | "compose" | "sent";
 
 const SWATCHES = ["#e26a48", "#34539f", "#2f7c86", "#e7c044", "#256a4f"];
 const ICON_CHOICES: IconKey[] = ["starfish2", "scallop", "conch", "wave", "oyster", "scallop2", "oyster2", "starfish"];
@@ -455,43 +455,10 @@ export function SenderFlow({
           </button>
         </div>
         <div className="stack">
-          <button className="btn" onClick={() => setScreen("text")}>
-            Send via text
-          </button>
           <button className="btn ghost" onClick={onPreviewReceiver}>
             Open as receiver →
           </button>
         </div>
-      </section>
-
-      {/* ── text (iMessage simulation) ──────────────────────── */}
-      <section className={`screen${screen === "text" ? " show" : ""}`}>
-        <button className="back" onClick={() => setScreen("sent")}>
-          <span className="ar">←</span> back
-        </button>
-        <div className="msghead">
-          <div className="av">A</div>
-          <div className="who">
-            Audrey<small>iMessage</small>
-          </div>
-        </div>
-        <div className="msgbody">
-          <div className="bubble">made you a tape</div>
-          <div className="preview">
-            <div className="thumb">
-              <CassettePreview title={title} color={color} from="winoman" />
-            </div>
-            <div className="meta">
-              <div className="pt">A mixtape for you</div>
-              <div className="pd">{sharePath}</div>
-            </div>
-          </div>
-          <div className="delivered">Delivered</div>
-        </div>
-        <div className="msgbar">iMessage</div>
-        <p className="tiny" style={{ textAlign: "center", marginTop: 14 }}>
-          simulation · this is how the link arrives
-        </p>
       </section>
     </>
   );

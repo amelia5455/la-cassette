@@ -61,30 +61,3 @@ export function Cassette({
     </div>
   );
 }
-
-/** Small static cassette used inside the iMessage preview thumbnail. */
-export function CassettePreview({ title, color, from }: { title: string; color: string; from: string }) {
-  return (
-    <div className="pvcassbox">
-      <div className="cassette">
-        <div className="screws">
-          <i />
-          <i />
-          <i />
-          <i />
-        </div>
-        <div className="lab">
-          <div className="stripe" style={{ background: color }} />
-          <div className="ttl">{title}</div>
-          <div className="frm">for you · {from}</div>
-          <div className="side">A</div>
-        </div>
-        <div className="bridge" />
-        <div className="win">
-          <div className="reel" />
-          <div className="reel" />
-        </div>
-      </div>
-    </div>
-  );
-}
