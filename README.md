@@ -6,7 +6,6 @@ service, picks a playlist, and the app matches each track to the *other* service
 side, not just the same title. The sender labels the tape (title, note, stripe
 color, shell icon) and gets a share link. A receiver opens the link, sees a sealed
 cassette, connects their service, and the playlist is created in their library.
-Unmatched tracks are surfaced honestly, never faked.
 
 Direction is user-selected: **Spotify → Apple Music** or **Apple Music → Spotify**.
 
