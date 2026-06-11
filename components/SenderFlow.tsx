@@ -118,11 +118,22 @@ export function SenderFlow({
           const res = await fetch("/api/spotify/playlists");
           const data = await res.json().catch(() => ({}));
           if (res.ok) {
+            sessionStorage.removeItem("lc_reauth");
             setPlaylists(data.playlists ?? []);
           } else if (!status.spotifyEnabled) {
             // Genuine demo mode (no credentials configured).
             setPlaylists(DEMO_PLAYLISTS);
           } else if (res.status === 401) {
+            // Session expired/missing. Re-auth silently (Spotify remembers the
+            // approval, so no popup). Guard against an infinite loop.
+            if (!sessionStorage.getItem("lc_reauth")) {
+              sessionStorage.setItem("lc_reauth", "1");
+              window.location.href = `/api/spotify/login?role=sender&returnTo=${encodeURIComponent(
+                "/?connected=sender",
+              )}`;
+              return;
+            }
+            sessionStorage.removeItem("lc_reauth");
             setPlaylists([]);
             setPlaylistError("Your Spotify session expired. Please reconnect.");
           } else {
