@@ -5,23 +5,6 @@ import { iconForName } from "./demo";
 const API = "https://api.spotify.com/v1";
 const ACCOUNTS = "https://accounts.spotify.com";
 
-// TEMP debug helper — writes a small diagnostic file to Blob.
-async function debugDump(path: string, body: string): Promise<void> {
-  try {
-    const { put } = await import("@vercel/blob");
-    await put(path, body, {
-      access: "public",
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      contentType: path.endsWith(".json") ? "application/json" : "text/plain",
-      cacheControlMaxAge: 0,
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-    });
-  } catch {
-    /* ignore */
-  }
-}
-
 export const SENDER_SCOPES = ["playlist-read-private", "playlist-read-collaborative", "user-read-private"];
 export const RECEIVER_SCOPES = ["playlist-modify-public", "playlist-modify-private", "user-read-private"];
 
@@ -152,17 +135,23 @@ export async function listPlaylists(token: string): Promise<Playlist[]> {
     });
 }
 
-interface SpotifyTrackItem {
-  track: {
-    name: string;
-    artists: { name: string }[];
-    external_ids?: { isrc?: string };
-  } | null;
+interface SpotifyTrack {
+  type?: string;
+  name?: string | null;
+  artists?: ({ name?: string } | null)[];
+  external_ids?: { isrc?: string };
 }
 
-function parseTrackItem(item: SpotifyTrackItem | null): SourceTrack | null {
-  const t = item?.track;
-  if (!t || !t.name) return null;
+interface SpotifyTrackItem {
+  // The current /playlists/{id}/items endpoint nests the track under `item`;
+  // the legacy /tracks endpoint uses `track`. Support both.
+  item?: SpotifyTrack | null;
+  track?: SpotifyTrack | null;
+}
+
+function parseTrackItem(wrapper: SpotifyTrackItem | null): SourceTrack | null {
+  const t = wrapper?.item ?? wrapper?.track;
+  if (!t || t.type === "episode" || !t.name) return null;
   return {
     title: t.name,
     artist: (t.artists ?? []).map((a) => a?.name).filter(Boolean).join(", "),
@@ -171,34 +160,26 @@ function parseTrackItem(item: SpotifyTrackItem | null): SourceTrack | null {
 }
 
 export async function playlistTracks(token: string, playlistId: string): Promise<SourceTrack[]> {
-  // Spotify has been changing playlist endpoints; some variants return 403 for
-  // certain apps. Try a few until one is accepted, then paginate from there.
+  // Spotify migrated playlist contents from /tracks to /items (and /tracks now
+  // returns 403 for some apps). Prefer /items, fall back to /tracks.
   const attempts = [
     `/playlists/${playlistId}/items?limit=100&additional_types=track`,
-    `/playlists/${playlistId}/items?limit=100`,
     `/playlists/${playlistId}/tracks?limit=100&additional_types=track`,
-    `/playlists/${playlistId}/tracks?limit=100`,
   ];
 
-  const log: string[] = [];
   let first: { items: SpotifyTrackItem[]; next: string | null } | null = null;
+  let lastStatus = 0;
   for (const path of attempts) {
     const res = await fetch(`${API}${path}`, { headers: { Authorization: `Bearer ${token}` } });
     if (res.ok) {
-      log.push(`200 ${path}`);
       first = (await res.json()) as { items: SpotifyTrackItem[]; next: string | null };
       break;
     }
-    const body = (await res.text()).slice(0, 160).replace(/\s+/g, " ");
-    log.push(`${res.status} ${path} :: ${body}`);
+    lastStatus = res.status;
   }
-  await debugDump("debug/tracks-attempts.txt", log.join("\n"));
-
   if (!first) {
-    throw new Error(`playlist tracks: all attempts failed → ${log.join(" | ")}`);
+    throw new Error(`Spotify playlist contents unavailable (HTTP ${lastStatus})`);
   }
-
-  await debugDump("debug/items-raw.json", JSON.stringify((first.items ?? []).slice(0, 2), null, 2));
 
   const tracks: SourceTrack[] = [];
   let page: { items: SpotifyTrackItem[]; next: string | null } | null = first;

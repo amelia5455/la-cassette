@@ -213,23 +213,16 @@ export function SenderFlow({
 
   // ── source tracks ──────────────────────────────────────────
   async function getSourceTracks(pl: Playlist): Promise<SourceTrack[]> {
-    try {
-      if (source === "spotify") {
-        const res = await fetch(`/api/spotify/tracks?playlistId=${encodeURIComponent(pl.id)}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.tracks?.length) return data.tracks;
-        }
-        return demoTracksFor(pl.id);
-      }
-      if (status.appleEnabled) {
-        const tracks = await applePlaylistTracks(pl.id);
-        if (tracks.length) return tracks;
-      }
-      return demoTracksFor(pl.id);
-    } catch {
-      return demoTracksFor(pl.id);
+    if (source === "spotify") {
+      if (!status.spotifyEnabled) return demoTracksFor(pl.id);
+      const res = await fetch(`/api/spotify/tracks?playlistId=${encodeURIComponent(pl.id)}`);
+      if (!res.ok) throw new Error("tracks_failed");
+      const data = await res.json();
+      return (data.tracks as SourceTrack[]) ?? [];
     }
+    // Apple
+    if (!status.appleEnabled) return demoTracksFor(pl.id);
+    return applePlaylistTracks(pl.id);
   }
 
   // ── convert (match + animate) ──────────────────────────────
@@ -241,7 +234,19 @@ export function SenderFlow({
     setMatchLabel("matching...");
     setScreen("convert");
 
-    const tracks = await getSourceTracks(pl);
+    let tracks: SourceTrack[];
+    try {
+      tracks = await getSourceTracks(pl);
+    } catch {
+      setPlaylistError("Couldn't read that playlist's tracks. Please reconnect and try again.");
+      setScreen("pick");
+      return;
+    }
+    if (tracks.length === 0) {
+      setPlaylistError("That playlist looks empty.");
+      setScreen("pick");
+      return;
+    }
     let result: MatchedTrack[];
     try {
       const res = await fetch("/api/match", {
