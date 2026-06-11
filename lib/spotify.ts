@@ -98,39 +98,38 @@ export async function currentUserName(token: string): Promise<string> {
   return me.display_name || me.id;
 }
 
+interface SpotifyPlaylistSummary {
+  id: string;
+  name: string | null;
+  owner?: { id?: string } | null;
+  // Spotify's current API exposes the track count under `items.total`;
+  // older docs called it `tracks.total`. Accept either.
+  items?: { total?: number } | null;
+  tracks?: { total?: number } | null;
+}
+
 export async function listPlaylists(token: string): Promise<Playlist[]> {
-  const data = await api<{
-    items: ({ id: string; name: string | null; tracks?: { total: number } } | null)[];
-  }>("/me/playlists?limit=50", token);
-  // TEMP debug: dump the raw shape of the first couple of playlists.
-  try {
-    const me = await api<{ id: string }>("/me", token);
-    const { put } = await import("@vercel/blob");
-    await put(
-      "debug/playlists-raw.json",
-      JSON.stringify({ meId: me.id, sample: (data.items ?? []).slice(0, 3) }, null, 2),
-      {
-        access: "public",
-        addRandomSuffix: false,
-        allowOverwrite: true,
-        contentType: "application/json",
-        cacheControlMaxAge: 0,
-        token: process.env.BLOB_READ_WRITE_TOKEN,
-      },
-    );
-  } catch {
-    /* ignore */
+  const me = await api<{ id: string }>("/me", token);
+
+  // Page through everything (the user may follow many playlists).
+  const all: (SpotifyPlaylistSummary | null)[] = [];
+  let url: string | null = "/me/playlists?limit=50";
+  while (url) {
+    const page: { items: (SpotifyPlaylistSummary | null)[]; next: string | null } = await api(url, token);
+    all.push(...(page.items ?? []));
+    url = page.next ? page.next.replace(API, "") : null;
   }
-  // Spotify can return null items or playlists without a `tracks` field
-  // (unavailable / certain generated playlists). Guard every access.
-  return (data.items ?? [])
-    .filter((p): p is NonNullable<typeof p> => Boolean(p && p.id))
+
+  return all
+    .filter((p): p is SpotifyPlaylistSummary => Boolean(p && p.id))
+    // Only the playlists the user actually created — not ones they follow.
+    .filter((p) => p.owner?.id === me.id)
     .map((p) => {
       const name = p.name ?? "Untitled";
       return {
         id: p.id,
         name,
-        trackCount: p.tracks?.total ?? 0,
+        trackCount: p.items?.total ?? p.tracks?.total ?? 0,
         icon: iconForName(name),
       };
     });
