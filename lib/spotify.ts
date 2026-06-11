@@ -160,34 +160,50 @@ interface SpotifyTrackItem {
   } | null;
 }
 
+function parseTrackItem(item: SpotifyTrackItem | null): SourceTrack | null {
+  const t = item?.track;
+  if (!t || !t.name) return null;
+  return {
+    title: t.name,
+    artist: (t.artists ?? []).map((a) => a?.name).filter(Boolean).join(", "),
+    isrc: t.external_ids?.isrc ?? null,
+  };
+}
+
 export async function playlistTracks(token: string, playlistId: string): Promise<SourceTrack[]> {
+  // Spotify has been changing playlist endpoints; some variants return 403 for
+  // certain apps. Try a few until one is accepted, then paginate from there.
+  const attempts = [
+    `/playlists/${playlistId}/tracks?limit=100`,
+    `/playlists/${playlistId}/tracks?limit=100&market=from_token`,
+    `/playlists/${playlistId}/tracks?limit=100&additional_types=track`,
+    `/playlists/${playlistId}/tracks?limit=100&fields=next,items(track(name,artists(name),external_ids))`,
+  ];
+
+  const log: string[] = [];
+  let first: { items: SpotifyTrackItem[]; next: string | null } | null = null;
+  for (const path of attempts) {
+    const res = await fetch(`${API}${path}`, { headers: { Authorization: `Bearer ${token}` } });
+    log.push(`${res.status} ${path}`);
+    if (res.ok) {
+      first = (await res.json()) as { items: SpotifyTrackItem[]; next: string | null };
+      break;
+    }
+  }
+  await debugDump("debug/tracks-attempts.txt", log.join("\n"));
+
+  if (!first) {
+    throw new Error(`playlist tracks: all attempts failed → ${log.join(" | ")}`);
+  }
+
   const tracks: SourceTrack[] = [];
-  let url: string | null = `/playlists/${playlistId}/tracks?limit=100&fields=next,items(track(name,artists(name),external_ids))`;
-  let firstPage = true;
-  while (url) {
-    let page: { items: SpotifyTrackItem[]; next: string | null };
-    try {
-      page = await api(url, token);
-    } catch (err) {
-      if (firstPage) await debugDump("debug/tracks-error.txt", `${url}\n${(err as Error).message}`);
-      throw err;
-    }
-    if (firstPage) {
-      await debugDump(
-        "debug/tracks-raw.json",
-        JSON.stringify({ url, sample: (page.items ?? []).slice(0, 2), count: page.items?.length }, null, 2),
-      );
-      firstPage = false;
-    }
+  let page: { items: SpotifyTrackItem[]; next: string | null } | null = first;
+  while (page) {
     for (const item of page.items ?? []) {
-      if (!item || !item.track) continue;
-      tracks.push({
-        title: item.track.name ?? "",
-        artist: (item.track.artists ?? []).map((a) => a?.name).filter(Boolean).join(", "),
-        isrc: item.track.external_ids?.isrc ?? null,
-      });
+      const parsed = parseTrackItem(item);
+      if (parsed) tracks.push(parsed);
     }
-    url = page.next ? page.next.replace(API, "") : null;
+    page = page.next ? await api(page.next.replace(API, ""), token) : null;
   }
   return tracks;
 }
