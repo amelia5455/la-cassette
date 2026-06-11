@@ -71,6 +71,9 @@ export function SenderFlow({
 
   const S = PLATFORMS[source];
   const T = PLATFORMS[target];
+  // Name shown on the tape ("for you · <name>"). Real Spotify display name when
+  // connected; the demo persona otherwise.
+  const senderName = status.spotifyName || "winoman";
 
   // ── status + OAuth resume ──────────────────────────────────
   const refreshStatus = useCallback(async () => {
@@ -289,7 +292,7 @@ export function SenderFlow({
           color,
           icon,
           source,
-          from: "winoman",
+          from: senderName,
           tracks: matched,
         }),
       });
@@ -302,7 +305,7 @@ export function SenderFlow({
         icon,
         source,
         target,
-        from: "winoman",
+        from: senderName,
         tracks: matched,
         matchedCount,
         totalCount: matched.length,
@@ -537,12 +540,14 @@ export function SenderFlow({
 
       {/* ── sent ────────────────────────────────────────────── */}
       <section className={`screen center${screen === "sent" ? " show" : ""}`}>
-        <div className="hero">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/hero.jpg" alt="La Cassette" />
+        <div className="eyebrow" style={{ marginTop: 4 }}>
+          <span className="br">[</span> ready to send <span className="br">]</span>
         </div>
-        <h1>{title}</h1>
-        <p className="sub">Your tape is ready. Send the link and it stays sealed until they tap it open.</p>
+        {/* The sealed mixtape, exactly as the receiver first sees it. */}
+        <Cassette title={title} color={color} from={senderName} sealed stickerIcon={icon} />
+        <p className="sub" style={{ marginTop: 22 }}>
+          Your tape is ready. Send the link and it stays sealed until they tap it open.
+        </p>
         <div className="ticket">
           your sealed link
           <span className="link" onClick={copyLink} style={{ cursor: "pointer" }}>
