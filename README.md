@@ -79,10 +79,14 @@ ids can be added to a new playlist.
 
 ### Storage
 
-A tape is one key (`tape:<id>`) → one JSON record. Uses **Upstash Redis** when
-configured (the Vercel Marketplace integration injects `KV_REST_API_URL` /
-`KV_REST_API_TOKEN`); otherwise falls back to a process-global in-memory map for
-local dev. Configure Redis for production.
+A tape is one key (`tape:<id>` / `tapes/<id>.json`) → one JSON record. Backends, in
+priority order:
+
+1. **Upstash Redis** — when `KV_REST_API_*` / `UPSTASH_REDIS_REST_*` are set.
+2. **Vercel Blob** — when `BLOB_READ_WRITE_TOKEN` is set (a linked Blob store).
+   This is what the production deployment uses (`vercel blob create-store`).
+3. **In-memory map** — local-dev fallback; does not persist across serverless
+   invocations.
 
 ---
 

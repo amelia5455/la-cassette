@@ -11,3 +11,4 @@
 .data
 *.tsbuildinfo
 next-env.d.ts.timestamp
+.env*
