@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { put } from "@vercel/blob";
 import { spotifyConfig } from "@/lib/config";
 import { listPlaylists } from "@/lib/spotify";
 import { validSpotifyToken } from "@/lib/spotify-session";
@@ -16,7 +17,21 @@ export async function GET() {
     const playlists = await listPlaylists(token);
     return NextResponse.json({ demo: false, playlists });
   } catch (err) {
-    console.error("[spotify/playlists] failed:", (err as Error).message);
-    return NextResponse.json({ error: (err as Error).message }, { status: 502 });
+    const message = (err as Error).message;
+    console.error("[spotify/playlists] failed:", message);
+    // TEMP debug: persist the exact Spotify response so it can be inspected.
+    try {
+      await put("debug/spotify-error.txt", `${new Date().toISOString()}\n${message}\n`, {
+        access: "public",
+        addRandomSuffix: false,
+        allowOverwrite: true,
+        contentType: "text/plain",
+        cacheControlMaxAge: 0,
+        token: process.env.BLOB_READ_WRITE_TOKEN,
+      });
+    } catch {
+      /* ignore */
+    }
+    return NextResponse.json({ error: message }, { status: 502 });
   }
 }
