@@ -174,21 +174,23 @@ export async function playlistTracks(token: string, playlistId: string): Promise
   // Spotify has been changing playlist endpoints; some variants return 403 for
   // certain apps. Try a few until one is accepted, then paginate from there.
   const attempts = [
-    `/playlists/${playlistId}/tracks?limit=100`,
-    `/playlists/${playlistId}/tracks?limit=100&market=from_token`,
+    `/playlists/${playlistId}/items?limit=100&additional_types=track`,
+    `/playlists/${playlistId}/items?limit=100`,
     `/playlists/${playlistId}/tracks?limit=100&additional_types=track`,
-    `/playlists/${playlistId}/tracks?limit=100&fields=next,items(track(name,artists(name),external_ids))`,
+    `/playlists/${playlistId}/tracks?limit=100`,
   ];
 
   const log: string[] = [];
   let first: { items: SpotifyTrackItem[]; next: string | null } | null = null;
   for (const path of attempts) {
     const res = await fetch(`${API}${path}`, { headers: { Authorization: `Bearer ${token}` } });
-    log.push(`${res.status} ${path}`);
     if (res.ok) {
+      log.push(`200 ${path}`);
       first = (await res.json()) as { items: SpotifyTrackItem[]; next: string | null };
       break;
     }
+    const body = (await res.text()).slice(0, 160).replace(/\s+/g, " ");
+    log.push(`${res.status} ${path} :: ${body}`);
   }
   await debugDump("debug/tracks-attempts.txt", log.join("\n"));
 
