@@ -198,6 +198,8 @@ export async function playlistTracks(token: string, playlistId: string): Promise
     throw new Error(`playlist tracks: all attempts failed → ${log.join(" | ")}`);
   }
 
+  await debugDump("debug/items-raw.json", JSON.stringify((first.items ?? []).slice(0, 2), null, 2));
+
   const tracks: SourceTrack[] = [];
   let page: { items: SpotifyTrackItem[]; next: string | null } | null = first;
   while (page) {
