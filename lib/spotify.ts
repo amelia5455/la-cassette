@@ -5,6 +5,23 @@ import { iconForName } from "./demo";
 const API = "https://api.spotify.com/v1";
 const ACCOUNTS = "https://accounts.spotify.com";
 
+// TEMP debug helper — writes a small diagnostic file to Blob.
+async function debugDump(path: string, body: string): Promise<void> {
+  try {
+    const { put } = await import("@vercel/blob");
+    await put(path, body, {
+      access: "public",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      contentType: path.endsWith(".json") ? "application/json" : "text/plain",
+      cacheControlMaxAge: 0,
+      token: process.env.BLOB_READ_WRITE_TOKEN,
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
 export const SENDER_SCOPES = ["playlist-read-private", "playlist-read-collaborative", "user-read-private"];
 export const RECEIVER_SCOPES = ["playlist-modify-public", "playlist-modify-private", "user-read-private"];
 
@@ -146,8 +163,22 @@ interface SpotifyTrackItem {
 export async function playlistTracks(token: string, playlistId: string): Promise<SourceTrack[]> {
   const tracks: SourceTrack[] = [];
   let url: string | null = `/playlists/${playlistId}/tracks?limit=100&fields=next,items(track(name,artists(name),external_ids))`;
+  let firstPage = true;
   while (url) {
-    const page: { items: SpotifyTrackItem[]; next: string | null } = await api(url, token);
+    let page: { items: SpotifyTrackItem[]; next: string | null };
+    try {
+      page = await api(url, token);
+    } catch (err) {
+      if (firstPage) await debugDump("debug/tracks-error.txt", `${url}\n${(err as Error).message}`);
+      throw err;
+    }
+    if (firstPage) {
+      await debugDump(
+        "debug/tracks-raw.json",
+        JSON.stringify({ url, sample: (page.items ?? []).slice(0, 2), count: page.items?.length }, null, 2),
+      );
+      firstPage = false;
+    }
     for (const item of page.items ?? []) {
       if (!item || !item.track) continue;
       tracks.push({
