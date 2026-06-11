@@ -49,6 +49,7 @@ export function SenderFlow({
 
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [loadingPlaylists, setLoadingPlaylists] = useState(false);
+  const [playlistError, setPlaylistError] = useState<string | null>(null);
   const [matched, setMatched] = useState<MatchedTrack[]>([]);
 
   // convert animation
@@ -108,32 +109,47 @@ export function SenderFlow({
   useEffect(() => () => clearConv(), []);
 
   // ── playlist loading ───────────────────────────────────────
-  const loadPlaylists = useCallback(async (svc: Service) => {
-    setLoadingPlaylists(true);
-    try {
-      if (svc === "spotify") {
-        const res = await fetch("/api/spotify/playlists");
-        if (res.status === 401) {
-          setPlaylists(DEMO_PLAYLISTS);
+  const loadPlaylists = useCallback(
+    async (svc: Service) => {
+      setLoadingPlaylists(true);
+      setPlaylistError(null);
+      try {
+        if (svc === "spotify") {
+          const res = await fetch("/api/spotify/playlists");
+          const data = await res.json().catch(() => ({}));
+          if (res.ok) {
+            setPlaylists(data.playlists ?? []);
+          } else if (!status.spotifyEnabled) {
+            // Genuine demo mode (no credentials configured).
+            setPlaylists(DEMO_PLAYLISTS);
+          } else if (res.status === 401) {
+            setPlaylists([]);
+            setPlaylistError("Your Spotify session expired. Please reconnect.");
+          } else {
+            setPlaylists([]);
+            setPlaylistError("Spotify wouldn't return your playlists. Please reconnect and try again.");
+          }
         } else {
-          const data = await res.json();
-          setPlaylists(data.playlists ?? DEMO_PLAYLISTS);
+          // Apple
+          if (status.appleEnabled) {
+            setPlaylists(await appleLibraryPlaylists());
+          } else {
+            setPlaylists(DEMO_PLAYLISTS);
+          }
         }
-      } else {
-        // Apple
-        const enabled = status.appleEnabled;
-        if (enabled) {
-          setPlaylists(await appleLibraryPlaylists());
+      } catch {
+        if ((svc === "spotify" && status.spotifyEnabled) || (svc === "apple" && status.appleEnabled)) {
+          setPlaylists([]);
+          setPlaylistError("Couldn't load your playlists. Please try again.");
         } else {
           setPlaylists(DEMO_PLAYLISTS);
         }
+      } finally {
+        setLoadingPlaylists(false);
       }
-    } catch {
-      setPlaylists(DEMO_PLAYLISTS);
-    } finally {
-      setLoadingPlaylists(false);
-    }
-  }, [status.appleEnabled]);
+    },
+    [status.spotifyEnabled, status.appleEnabled],
+  );
 
   // ── connect ────────────────────────────────────────────────
   async function connect() {
@@ -383,6 +399,17 @@ export function SenderFlow({
         <div className="plist">
           {loadingPlaylists && playlists.length === 0 ? (
             <p className="tiny">loading…</p>
+          ) : playlistError ? (
+            <>
+              <p className="tiny" style={{ color: "var(--coral)", textAlign: "left", margin: "4px 0 12px" }}>
+                {playlistError}
+              </p>
+              <button className="btn ghost" onClick={() => setScreen("connect")}>
+                ← Back to connect
+              </button>
+            </>
+          ) : playlists.length === 0 ? (
+            <p className="tiny">No playlists found in your {S.name} library.</p>
           ) : (
             playlists.map((pl) => (
               <button className="pl" key={pl.id} onClick={() => convert(pl)}>

@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
     const tracks = await playlistTracks(token, playlistId);
     return NextResponse.json({ demo: false, tracks });
   } catch (err) {
+    console.error("[spotify/tracks] failed:", (err as Error).message);
     return NextResponse.json({ error: (err as Error).message }, { status: 502 });
   }
 }

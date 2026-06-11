@@ -16,6 +16,7 @@ export async function GET() {
     const playlists = await listPlaylists(token);
     return NextResponse.json({ demo: false, playlists });
   } catch (err) {
+    console.error("[spotify/playlists] failed:", (err as Error).message);
     return NextResponse.json({ error: (err as Error).message }, { status: 502 });
   }
 }
