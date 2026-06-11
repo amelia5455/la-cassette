@@ -100,14 +100,21 @@ export async function currentUserName(token: string): Promise<string> {
 
 export async function listPlaylists(token: string): Promise<Playlist[]> {
   const data = await api<{
-    items: { id: string; name: string; tracks: { total: number } }[];
+    items: ({ id: string; name: string | null; tracks?: { total: number } } | null)[];
   }>("/me/playlists?limit=50", token);
-  return data.items.map((p) => ({
-    id: p.id,
-    name: p.name,
-    trackCount: p.tracks.total,
-    icon: iconForName(p.name),
-  }));
+  // Spotify can return null items or playlists without a `tracks` field
+  // (unavailable / certain generated playlists). Guard every access.
+  return (data.items ?? [])
+    .filter((p): p is NonNullable<typeof p> => Boolean(p && p.id))
+    .map((p) => {
+      const name = p.name ?? "Untitled";
+      return {
+        id: p.id,
+        name,
+        trackCount: p.tracks?.total ?? 0,
+        icon: iconForName(name),
+      };
+    });
 }
 
 interface SpotifyTrackItem {
@@ -123,11 +130,11 @@ export async function playlistTracks(token: string, playlistId: string): Promise
   let url: string | null = `/playlists/${playlistId}/tracks?limit=100&fields=next,items(track(name,artists(name),external_ids))`;
   while (url) {
     const page: { items: SpotifyTrackItem[]; next: string | null } = await api(url, token);
-    for (const item of page.items) {
-      if (!item.track) continue;
+    for (const item of page.items ?? []) {
+      if (!item || !item.track) continue;
       tracks.push({
-        title: item.track.name,
-        artist: item.track.artists.map((a) => a.name).join(", "),
+        title: item.track.name ?? "",
+        artist: (item.track.artists ?? []).map((a) => a?.name).filter(Boolean).join(", "),
         isrc: item.track.external_ids?.isrc ?? null,
       });
     }
