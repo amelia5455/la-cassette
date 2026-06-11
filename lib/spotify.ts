@@ -102,6 +102,25 @@ export async function listPlaylists(token: string): Promise<Playlist[]> {
   const data = await api<{
     items: ({ id: string; name: string | null; tracks?: { total: number } } | null)[];
   }>("/me/playlists?limit=50", token);
+  // TEMP debug: dump the raw shape of the first couple of playlists.
+  try {
+    const me = await api<{ id: string }>("/me", token);
+    const { put } = await import("@vercel/blob");
+    await put(
+      "debug/playlists-raw.json",
+      JSON.stringify({ meId: me.id, sample: (data.items ?? []).slice(0, 3) }, null, 2),
+      {
+        access: "public",
+        addRandomSuffix: false,
+        allowOverwrite: true,
+        contentType: "application/json",
+        cacheControlMaxAge: 0,
+        token: process.env.BLOB_READ_WRITE_TOKEN,
+      },
+    );
+  } catch {
+    /* ignore */
+  }
   // Spotify can return null items or playlists without a `tracks` field
   // (unavailable / certain generated playlists). Guard every access.
   return (data.items ?? [])
