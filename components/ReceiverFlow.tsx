@@ -134,7 +134,15 @@ export function ReceiverFlow({ tape, spotifyEnabled, spotifyConnected, appleEnab
           <span>{target.name}</span>
         </h1>
         <p className="sub">Connect {target.name} and this gets added as a new playlist in your library.</p>
-        {tape.note ? <div className="pcard">{tape.note}</div> : null}
+        {tape.note ? (
+          <div className="notewrap">
+            <div className="notecap">a little note from {tape.from}</div>
+            <div className="pcard">
+              {tape.note}
+              <span className="from">— {tape.from}</span>
+            </div>
+          </div>
+        ) : null}
         <div className="stack">
           <button className="btn coral" onClick={fileTape} disabled={filing}>
             {filing
