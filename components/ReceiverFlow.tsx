@@ -137,10 +137,7 @@ export function ReceiverFlow({ tape, spotifyEnabled, spotifyConnected, appleEnab
         {tape.note ? (
           <div className="notewrap">
             <div className="notecap">a little note from {tape.from}</div>
-            <div className="pcard">
-              {tape.note}
-              <span className="from">— {tape.from}</span>
-            </div>
+            <div className="pcard">{tape.note}</div>
           </div>
         ) : null}
         <div className="stack">
